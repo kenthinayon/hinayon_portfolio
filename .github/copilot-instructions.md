@@ -1,0 +1,4 @@
+- Keep content changes in `app/page.tsx` (projects + currently learning arrays).
+- Use small reusable components in `components/`.
+- Prefer accessible markup (semantic headings, focusable links, good contrast).
+- Keep Tailwind classes consistent with existing style.
