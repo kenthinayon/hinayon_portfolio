@@ -185,7 +185,8 @@ export default function Portfolio() {
       {/* Hero */}
       <section id="home" className="relative mx-auto flex min-h-[92vh] max-w-6xl items-center px-5 pt-28 sm:px-6">
         <div className="mx-auto w-full max-w-3xl text-center">
-          <div className="flex flex-col items-center">
+          <div className="rounded-[28px] border border-border/60 bg-background/55 p-6 backdrop-blur-xl shadow-[0_18px_60px_rgba(0,0,0,0.12)] sm:p-10 dark:bg-black/30 dark:shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
+            <div className="flex flex-col items-center">
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-panel px-4 py-2 text-xs text-foreground/80">
               <span className="inline-flex size-2 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(34,211,238,0.65)]" />
               Welcome to my creative space
@@ -250,6 +251,7 @@ export default function Portfolio() {
                 <p className="text-sm font-semibold text-foreground">Always learning</p>
                 <p className="mt-1 text-sm text-muted">Modern tools, best practices, and continuous improvement.</p>
               </div>
+            </div>
             </div>
           </div>
         </div>
@@ -485,7 +487,7 @@ export default function Portfolio() {
                 GitHub
               </a>
               <a
-                href="https://linkedin.com/in/kenthinayon"
+                href="https://linkedin.com/in/kent"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-2xl border border-border bg-panel px-6 py-3 text-sm font-semibold text-foreground/85 transition hover:border-purple-300/40 hover:bg-panel-strong"
