@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from "react";
 import Image from "next/image";
 import { ThemeToggle } from "../components/ThemeToggle";
+import { HeroPortrait } from "../components/HeroPortrait";
 import {
   ArrowRight,
   Brain,
@@ -10,7 +11,7 @@ import {
   ExternalLink,
   Github,
   Layers,
-  Linkedin,
+  Youtube,
   Mail,
   Menu,
   ShieldCheck,
@@ -187,6 +188,7 @@ export default function Portfolio() {
         <div className="mx-auto w-full max-w-3xl text-center">
           <div className="rounded-[28px] border border-border/60 bg-background/55 p-6 backdrop-blur-xl shadow-[0_18px_60px_rgba(0,0,0,0.12)] sm:p-10 dark:bg-black/30 dark:shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
             <div className="flex flex-col items-center">
+              <HeroPortrait src="/KENT.jpg" alt="Portrait of Kent Hinayon" />
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-panel px-4 py-2 text-xs text-foreground/80">
               <span className="inline-flex size-2 rounded-full bg-cyan-300 shadow-[0_0_18px_rgba(34,211,238,0.65)]" />
               Welcome to my creative space
@@ -231,13 +233,13 @@ export default function Portfolio() {
                   <Github size={18} />
                 </a>
                 <a
-                  href="https://linkedin.com/in/yourprofile"
+                  href="https://www.youtube.com/@fliptopbattles"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex size-11 items-center justify-center rounded-2xl border border-border bg-panel text-foreground/80 transition hover:border-cyan-300/40 hover:bg-panel-strong"
-                  aria-label="LinkedIn"
+                  aria-label="YouTube"
                 >
-                  <Linkedin size={18} />
+                  <Youtube size={18} />
                 </a>
               </div>
             </div>
@@ -487,13 +489,13 @@ export default function Portfolio() {
                 GitHub
               </a>
               <a
-                href="https://linkedin.com/in/kent"
+                href="https://www.youtube.com/@fliptopbattles"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 rounded-2xl border border-border bg-panel px-6 py-3 text-sm font-semibold text-foreground/85 transition hover:border-purple-300/40 hover:bg-panel-strong"
               >
-                <Linkedin size={16} />
-                LinkedIn
+                <Youtube size={16} />
+                YouTube
               </a>
             </div>
           </div>
