@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import Image from "next/image";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { HeroPortrait } from "../components/HeroPortrait";
+import { ContactForm } from "../components/ContactForm";
 import {
   ArrowRight,
   Brain,
@@ -498,6 +499,10 @@ export default function Portfolio() {
                 YouTube
               </a>
             </div>
+          </div>
+
+          <div className="mt-8">
+            <ContactForm />
           </div>
 
           <div className="mt-10 flex flex-col gap-2 border-t border-border pt-6 text-xs text-foreground/55 sm:flex-row sm:items-center sm:justify-between">

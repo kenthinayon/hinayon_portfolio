@@ -1,52 +1,160 @@
 import { NextResponse } from "next/server";
+import nodemailer from "nodemailer";
+import { contactSchema } from "../../../lib/contact";
 
-type ContactPayload = {
-  name: string;
-  email: string;
-  message: string;
-};
+export const runtime = "nodejs";
 
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+type RateState = { count: number; resetAt: number };
+
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const RATE_LIMIT_MAX = 5;
+const rateLimitByIp = new Map<string, RateState>();
+
+function getClientIp(req: Request) {
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) return xff.split(",")[0]?.trim() || "unknown";
+  return req.headers.get("x-real-ip") || "unknown";
+}
+
+function checkRateLimit(ip: string) {
+  const now = Date.now();
+  const current = rateLimitByIp.get(ip);
+
+  if (!current || now > current.resetAt) {
+    rateLimitByIp.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { allowed: true } as const;
+  }
+
+  if (current.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((current.resetAt - now) / 1000) } as const;
+  }
+
+  current.count += 1;
+  return { allowed: true } as const;
+}
+
+function requireEnv(name: string) {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing env var: ${name}`);
+  return value;
+}
+
+let cachedTransporter: nodemailer.Transporter | null = null;
+function getTransporter() {
+  if (cachedTransporter) return cachedTransporter;
+
+  const host = requireEnv("SMTP_HOST");
+  const port = Number(requireEnv("SMTP_PORT"));
+  const user = requireEnv("SMTP_USER");
+  const pass = requireEnv("SMTP_PASS");
+  const secure = process.env.SMTP_SECURE
+    ? process.env.SMTP_SECURE === "true"
+    : port === 465;
+
+  cachedTransporter = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  });
+
+  return cachedTransporter;
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => null)) as ContactPayload | null;
-
-  const name = (body?.name ?? "").trim();
-  const email = (body?.email ?? "").trim();
-  const message = (body?.message ?? "").trim();
-
-  if (name.length < 2) {
+  const ip = getClientIp(req);
+  const rate = checkRateLimit(ip);
+  if (!rate.allowed) {
     return NextResponse.json(
-      { ok: false, message: "Please enter your name." },
-      { status: 400 },
+      { ok: false, message: "Too many requests. Please try again soon." },
+      {
+        status: 429,
+        headers: { "Retry-After": String(rate.retryAfterSeconds) },
+      },
     );
   }
 
-  if (!isValidEmail(email)) {
-    return NextResponse.json(
-      { ok: false, message: "Please enter a valid email." },
-      { status: 400 },
-    );
+  const json = (await req.json().catch(() => null)) as unknown;
+  const parsed = contactSchema.safeParse(json);
+  if (!parsed.success) {
+    const message = parsed.error.issues[0]?.message || "Invalid form data.";
+    return NextResponse.json({ ok: false, message }, { status: 400 });
   }
 
-  if (message.length < 10) {
-    return NextResponse.json(
-      { ok: false, message: "Message should be at least 10 characters." },
-      { status: 400 },
-    );
+  // Honeypot: silently accept but do not send email.
+  if ((parsed.data.company ?? "").trim().length > 0) {
+    return NextResponse.json({ ok: true, message: "Thanks! Your message was received." });
   }
 
-  if (message.length > 2000) {
+  try {
+    const to = process.env.CONTACT_TO_EMAIL || requireEnv("SMTP_USER");
+    const fromEmail = process.env.CONTACT_FROM_EMAIL || requireEnv("SMTP_USER");
+
+    const { name, email, subject, message } = parsed.data;
+
+    const transporter = getTransporter();
+
+    // Verify connection in dev; in production this can add latency, so only do it when explicitly enabled.
+    if (process.env.SMTP_VERIFY === "true") {
+      await transporter.verify();
+    }
+
+    const safeSubject = subject.replace(/[\r\n]+/g, " ").slice(0, 120);
+
+    await transporter.sendMail({
+      to,
+      from: `Portfolio Contact <${fromEmail}>`,
+      replyTo: email,
+      subject: `[Portfolio] ${safeSubject}`,
+      text: `New message from your portfolio contact form.\n\nName: ${name}\nEmail: ${email}\nSubject: ${safeSubject}\n\nMessage:\n${message}\n`,
+      html: `
+        <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;line-height:1.5">
+          <h2 style="margin:0 0 12px">New portfolio message</h2>
+          <p style="margin:0 0 8px"><strong>Name:</strong> ${escapeHtml(name)}</p>
+          <p style="margin:0 0 8px"><strong>Email:</strong> ${escapeHtml(email)}</p>
+          <p style="margin:0 0 16px"><strong>Subject:</strong> ${escapeHtml(safeSubject)}</p>
+          <p style="margin:0 0 6px"><strong>Message:</strong></p>
+          <pre style="white-space:pre-wrap;background:#f6f6f6;padding:12px;border-radius:8px">${escapeHtml(message)}</pre>
+        </div>
+      `.trim(),
+    });
+
+    return NextResponse.json({ ok: true, message: "Thanks! Your message was sent." });
+  } catch (err) {
+    const message = getSafeErrorMessage(err);
     return NextResponse.json(
-      { ok: false, message: "Message is too long." },
-      { status: 400 },
+      { ok: false, message },
+      { status: 500 },
     );
   }
+}
 
-  return NextResponse.json({
-    ok: true,
-    message: "Thanks! Your message was received.",
-  });
+function getSafeErrorMessage(err: unknown) {
+  if (err instanceof Error) {
+    if (err.message.startsWith("Missing env var:")) {
+      if (process.env.NODE_ENV === "production") {
+        return "Email is not configured on the server. Please set the SMTP environment variables.";
+      }
+      return `${err.message}. Set it in .env.local (local) or in your hosting provider env vars (production).`;
+    }
+
+    // Avoid leaking provider details in production.
+    if (process.env.NODE_ENV === "production") {
+      return "Email service error. Please try again later.";
+    }
+    return err.message;
+  }
+
+  return process.env.NODE_ENV === "production"
+    ? "Email service error. Please try again later."
+    : String(err);
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }

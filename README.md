@@ -16,6 +16,24 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Contact Form Email (Production)
+
+This project includes a contact form that POSTs to `/api/contact` and sends an email via SMTP on the server.
+
+1) Install deps (already handled if you run `npm install` after pulling changes)
+
+2) Configure environment variables
+
+- Copy `.env.example` to `.env.local` for local development
+- Set these variables in your hosting provider for production:
+	- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
+	- `CONTACT_TO_EMAIL`
+	- Optional: `CONTACT_FROM_EMAIL`, `SMTP_SECURE`, `SMTP_VERIFY`
+
+Notes:
+- If you use Gmail, you typically need an “App Password” (not your normal password).
+- The API includes basic server-side validation, a honeypot field, and a small IP-based rate limiter.
+
 ## Customize Your Content
 
 - Hero statement + sections live in `app/page.tsx`
