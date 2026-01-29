@@ -119,6 +119,62 @@ export async function POST(req: Request) {
       `.trim(),
     });
 
+    const autoReplyEnabled = process.env.CONTACT_AUTOREPLY_ENABLED
+      ? process.env.CONTACT_AUTOREPLY_ENABLED === "true"
+      : true;
+
+    if (autoReplyEnabled) {
+      const vars = {
+        name,
+        email,
+        subject: safeSubject,
+        message,
+      };
+
+      const autoReplySubjectTemplate =
+        process.env.CONTACT_AUTOREPLY_SUBJECT || "Thanks for reaching out, {name}!";
+      const autoReplyTextTemplate = process.env.CONTACT_AUTOREPLY_TEXT ||
+        [
+          "Hi {name},",
+          "",
+          "Thanks for messaging me — I really appreciate it.",
+          "I received your message about: {subject}",
+          "",
+          "I’ll get back to you as soon as I can.",
+          "",
+          "Best regards,",
+          "Kent",
+          "",
+          "(This is an automatic reply.)",
+        ].join("\n");
+
+      const autoReplySubject = applyTemplate(autoReplySubjectTemplate, vars)
+        .replace(/[\r\n]+/g, " ")
+        .slice(0, 120);
+      const autoReplyText = applyTemplate(autoReplyTextTemplate, vars).slice(0, 5000);
+
+      const autoReplyHtmlTemplate = process.env.CONTACT_AUTOREPLY_HTML;
+      const autoReplyHtml = autoReplyHtmlTemplate
+        ? applyTemplate(autoReplyHtmlTemplate, vars)
+        : `
+            <div style="font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;line-height:1.6">
+              <p style="margin:0 0 12px">${escapeHtml(autoReplyText).replaceAll("\n", "<br />")}</p>
+            </div>
+          `.trim();
+
+      // Don’t fail the request if the auto-reply fails; the main delivery (to you) already succeeded.
+      transporter.sendMail({
+        to: email,
+        from: `Portfolio Contact <${fromEmail}>`,
+        replyTo: to,
+        subject: autoReplySubject,
+        text: autoReplyText,
+        html: autoReplyHtml,
+      }).catch(() => {
+        // Intentionally swallow; avoids leaking provider info to the client.
+      });
+    }
+
     return NextResponse.json({ ok: true, message: "Thanks! Your message was sent." });
   } catch (err) {
     const message = getSafeErrorMessage(err);
@@ -127,6 +183,12 @@ export async function POST(req: Request) {
       { status: 500 },
     );
   }
+}
+
+function applyTemplate(template: string, vars: Record<string, string>) {
+  // Minimal placeholder replacement for env-configurable templates.
+  // Supports {name}, {email}, {subject}, {message}
+  return template.replace(/\{(name|email|subject|message)\}/g, (_, key: string) => vars[key] ?? "");
 }
 
 function getSafeErrorMessage(err: unknown) {

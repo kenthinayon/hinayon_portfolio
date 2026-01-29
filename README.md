@@ -29,6 +29,11 @@ This project includes a contact form that POSTs to `/api/contact` and sends an e
 	- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
 	- `CONTACT_TO_EMAIL`
 	- Optional: `CONTACT_FROM_EMAIL`, `SMTP_SECURE`, `SMTP_VERIFY`
+	- Optional auto-reply (sends a thank-you email back to the sender):
+		- `CONTACT_AUTOREPLY_ENABLED` (default: `true`)
+		- `CONTACT_AUTOREPLY_SUBJECT` (supports `{name}`, `{subject}`)
+		- `CONTACT_AUTOREPLY_TEXT` (supports `{name}`, `{email}`, `{subject}`, `{message}`)
+		- `CONTACT_AUTOREPLY_HTML` (optional, supports the same placeholders)
 
 Notes:
 - If you use Gmail, you typically need an “App Password” (not your normal password).
