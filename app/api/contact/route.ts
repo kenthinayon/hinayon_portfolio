@@ -119,9 +119,7 @@ export async function POST(req: Request) {
       `.trim(),
     });
 
-    const autoReplyEnabled = process.env.CONTACT_AUTOREPLY_ENABLED
-      ? process.env.CONTACT_AUTOREPLY_ENABLED === "true"
-      : true;
+    const autoReplyEnabled = parseBooleanEnv(process.env.CONTACT_AUTOREPLY_ENABLED, true);
 
     if (autoReplyEnabled) {
       const vars = {
@@ -163,16 +161,33 @@ export async function POST(req: Request) {
           `.trim();
 
       // Don’t fail the request if the auto-reply fails; the main delivery (to you) already succeeded.
-      transporter.sendMail({
-        to: email,
-        from: `Portfolio Contact <${fromEmail}>`,
-        replyTo: to,
-        subject: autoReplySubject,
-        text: autoReplyText,
-        html: autoReplyHtml,
-      }).catch(() => {
-        // Intentionally swallow; avoids leaking provider info to the client.
-      });
+      try {
+        // Important: in serverless environments, fire-and-forget promises may not finish
+        // after the response is returned. Await for reliability, but swallow errors.
+        await transporter.sendMail({
+          to: email,
+          from: `Portfolio Contact <${fromEmail}>`,
+          replyTo: to,
+          subject: autoReplySubject,
+          text: autoReplyText,
+          html: autoReplyHtml,
+          headers: {
+            // Helps some mail systems classify this correctly.
+            "Auto-Submitted": "auto-replied",
+            "Precedence": "bulk",
+            // Microsoft-specific hint to suppress further auto-responses.
+            "X-Auto-Response-Suppress": "All",
+          },
+        });
+      } catch (err) {
+        // Avoid leaking provider details to the client, but do log server-side for debugging.
+        // Vercel: check Functions logs for /api/contact.
+        const details = getMailErrorDetails(err);
+        console.warn(
+          "Contact auto-reply failed to send.",
+          process.env.NODE_ENV === "production" ? details : { ...details, raw: err },
+        );
+      }
     }
 
     return NextResponse.json({ ok: true, message: "Thanks! Your message was sent." });
@@ -189,6 +204,27 @@ function applyTemplate(template: string, vars: Record<string, string>) {
   // Minimal placeholder replacement for env-configurable templates.
   // Supports {name}, {email}, {subject}, {message}
   return template.replace(/\{(name|email|subject|message)\}/g, (_, key: string) => vars[key] ?? "");
+}
+
+function parseBooleanEnv(value: string | undefined, defaultValue: boolean) {
+  if (value == null) return defaultValue;
+  const normalized = value.trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
+  return defaultValue;
+}
+
+function getMailErrorDetails(err: unknown) {
+  if (err && typeof err === "object") {
+    const anyErr = err as Record<string, unknown>;
+    const code = typeof anyErr.code === "string" ? anyErr.code : undefined;
+    const command = typeof anyErr.command === "string" ? anyErr.command : undefined;
+    const responseCode = typeof anyErr.responseCode === "number" ? anyErr.responseCode : undefined;
+    const message = err instanceof Error ? err.message : undefined;
+    return { code, command, responseCode, message };
+  }
+
+  return { message: typeof err === "string" ? err : String(err) };
 }
 
 function getSafeErrorMessage(err: unknown) {
